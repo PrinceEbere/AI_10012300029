@@ -1,34 +1,44 @@
-# Student: Prince Ebere Enoch, Index: [Your Index Number]
-
 import os
 from groq import Groq
 from dotenv import load_dotenv
+import logging
 
-# Load environment variables from .env file
+# ----------------------------
+# LOAD ENV VARIABLES
+# ----------------------------
 load_dotenv()
 
-# Get API key from environment variable
 api_key = os.getenv("GROQ_API_KEY")
 
-if not api_key:
-    raise ValueError("❌ No API key found. Set GROQ_API_KEY in .env file or system environment.")
+# Lazy client initialization (IMPORTANT)
+_client = None
 
-# Initialize Groq client
-client = Groq(api_key=api_key)
+def get_client():
+    global _client
 
-# Debug: List available models (remove after testing)
-try:
-    models = client.models.list()
-    print("Available Groq models:", [m.id for m in models.data])
-except Exception as e:
-    print(f"Error listing models: {e}")
+    if _client is None:
+        if not api_key:
+            raise ValueError("GROQ_API_KEY not set in environment")
 
+        _client = Groq(api_key=api_key)
+
+    return _client
+
+
+# ----------------------------
+# RESPONSE GENERATION
+# ----------------------------
 def generate_response(query, context_chunks):
     """
-    Generate response using Groq with retrieved context.
+    Generate response using Groq with controlled memory usage.
     """
+
+    # 🔥 LIMIT CONTEXT SIZE (VERY IMPORTANT)
+    context_chunks = context_chunks[:3]  # limit chunks
+
     if context_chunks:
-        context = "\n\n".join(context_chunks)
+        context = "\n\n".join(chunk[:300] for chunk in context_chunks)
+
         prompt = (
             "You are an academic assistant. Use ONLY the provided context to answer the question. "
             "If the answer is not in the context, respond with 'I don't know.'\n\n"
@@ -39,20 +49,26 @@ def generate_response(query, context_chunks):
         prompt = f"Answer the question: {query}"
 
     try:
+        client = get_client()
+
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=500,
+            max_tokens=300,   # 🔥 reduced from 500
             temperature=0.2,
         )
-        choice = response.choices[0]
-        if getattr(choice, "message", None) is not None:
-            return choice.message.content.strip()
-        return str(getattr(choice, "text", "")).strip()
+
+        return response.choices[0].message.content.strip()
+
     except Exception as e:
+        logging.error(f"Groq error: {str(e)}")
+
         error_str = str(e).lower()
+
         if "rate limit" in error_str:
             return "Error: Groq rate limit exceeded. Try again later."
+
         if "model" in error_str:
-            return "Error: Groq model unavailable. Check model name or API plan."
-        return f"Error generating response: {str(e)}"
+            return "Error: Groq model unavailable."
+
+        return "Error generating response."
