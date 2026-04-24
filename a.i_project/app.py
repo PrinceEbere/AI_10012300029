@@ -16,6 +16,16 @@ from src.generator import generate_response
 
 
 # ----------------------------
+# PAGE CONFIG
+# ----------------------------
+st.set_page_config(
+    page_title="AI RAG Chat Assistant",
+    page_icon="💬",
+    layout="wide"
+)
+
+
+# ----------------------------
 # LOGGING SETUP
 # ----------------------------
 os.makedirs("logs", exist_ok=True)
@@ -25,6 +35,18 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
+
+
+# ----------------------------
+# GLOBAL STYLING (CHATGPT STYLE LIGHT IMPROVEMENT)
+# ----------------------------
+st.markdown("""
+<style>
+.stApp {
+    background: linear-gradient(180deg, #f7faff 0%, #ffffff 100%);
+}
+</style>
+""", unsafe_allow_html=True)
 
 
 # ----------------------------
@@ -68,13 +90,7 @@ def build_vector_store():
 # RAG HELPERS
 # ----------------------------
 def expand_query(query):
-    synonyms = [
-        "economic policy",
-        "budget statement",
-        "election results",
-        "government spending"
-    ]
-    return query + " " + " ".join(synonyms)
+    return query + " economic policy budget election government spending"
 
 
 def select_context(chunks, scores, max_chars=1200):
@@ -93,19 +109,16 @@ def select_context(chunks, scores, max_chars=1200):
 
 
 # ----------------------------
-# RAG PIPELINE (FIXED)
+# RAG PIPELINE (FIXED + CLEAN)
 # ----------------------------
 def rag_pipeline(query, retriever):
     expanded = expand_query(query)
 
     model = get_model()
-
-    # FIX: use correct variable
     query_embedding = model.encode(expanded).astype("float32")
 
     results, scores = retriever.search(query_embedding, k=5)
 
-    # FIX: FAISS IP similarity (higher = better)
     if len(scores) > 0 and np.max(scores) < 0.45:
         results, scores = retriever.rerank(results, scores)
 
@@ -117,38 +130,112 @@ def rag_pipeline(query, retriever):
 
 
 # ----------------------------
-# STREAMLIT UI
+# HERO HEADER (CHATGPT STYLE)
 # ----------------------------
-def main():
-    st.set_page_config(
-        page_title="AI RAG System",
-        page_icon="🇬🇭",
-        layout="wide"
-    )
+st.markdown("""
+<div style='text-align:center; padding:1.2rem 0;'>
+    <h1 style='color:#1f2937;'>💬 Academic City AI Assistant</h1>
+    <p style='color:#6b7280; font-size:1rem;'>
+        Chat with your Ghana Budget & Election AI
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
-    st.title("🇬🇭 AI RAG System - Academic City Project")
-    st.write("Ask questions about Ghana election results or budget documents.")
 
-    retriever, chunks = build_vector_store()
+# ----------------------------
+# SIDEBAR
+# ----------------------------
+with st.sidebar:
+    st.title("🎓 AI Assistant")
 
-    query = st.text_input("Enter your question:")
+    st.markdown("### 👤 Student Info")
+    st.write("Prince Ebere Enoch")
+    st.write("Index: 10012300029")
 
-    if st.button("Ask AI") and query:
-        with st.spinner("Thinking..."):
+    st.markdown("### ⚙️ System")
+    st.write("RAG + FAISS + LLM")
+
+    st.markdown("### 📊 Features")
+    st.write("• Ghana Budget Q&A")
+    st.write("• Election Insights")
+    st.write("• Document Search")
+
+    st.markdown("---")
+
+    if st.button("🧹 Clear Chat"):
+        st.session_state.chat_history = []
+
+
+# ----------------------------
+# CHAT MEMORY INIT
+# ----------------------------
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+
+# ----------------------------
+# DISPLAY CHAT HISTORY
+# ----------------------------
+retriever, chunks = build_vector_store()
+
+for msg in st.session_state.chat_history:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+
+# ----------------------------
+# INPUT BOX (CHATGPT STYLE)
+# ----------------------------
+query = st.chat_input("Ask anything about Ghana budget or elections...")
+
+if query:
+
+    # user message
+    st.session_state.chat_history.append({
+        "role": "user",
+        "content": query
+    })
+
+    with st.chat_message("user"):
+        st.markdown(query)
+
+    # assistant response
+    with st.chat_message("assistant"):
+        with st.spinner("Thinking... 🤔"):
+
             results, scores, context, answer = rag_pipeline(query, retriever)
 
-        st.subheader("🤖 Answer")
-        st.success(answer)
+            st.markdown(f"""
+            <div style="
+                background: linear-gradient(135deg, #ffffff, #f3f6ff);
+                padding: 1.2rem;
+                border-radius: 14px;
+                border-left: 5px solid #3b82f6;
+                box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+                color: #111827;
+            ">
+            {answer}
+            </div>
+            """, unsafe_allow_html=True)
 
-        st.subheader("📄 Retrieved Context")
+            with st.expander("📄 Retrieved Context"):
+                for i, (res, score) in enumerate(zip(results, scores)):
+                    st.markdown(f"**Chunk {i+1} | Score: {score:.2f}**")
+                    st.write(res[:250])
 
-        for i, (chunk, score) in enumerate(zip(results, scores)):
-            st.markdown(f"**Chunk {i+1} | Score: {score:.3f}**")
-            st.write(chunk[:300])
+    st.session_state.chat_history.append({
+        "role": "assistant",
+        "content": answer
+    })
+
+    logging.info(f"Query: {query} | Answer: {answer}")
 
 
 # ----------------------------
-# RUN APP
+# FOOTER
 # ----------------------------
-if __name__ == "__main__":
-    main()
+st.markdown("---")
+st.markdown(
+    "<div style='text-align:center; color:gray;'>Built with RAG • Academic City • 2026</div>",
+    unsafe_allow_html=True
+)
