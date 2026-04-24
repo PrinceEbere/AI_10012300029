@@ -94,8 +94,8 @@ def select_context(chunks, scores, max_chars=1200):
 def rag_pipeline(query, retriever):
     expanded = expand_query(query)
 
-    query_embedding = embedder_model.encode(expanded).astype("float32")
-
+    model = get_model()
+    query_embedding = model.encode(expanded_query).astype("float32")
     results, scores = retriever.search(query_embedding, k=5)
 
     if len(scores) > 0 and np.min(scores) < 0.45:
