@@ -62,7 +62,7 @@ logging.basicConfig(
 
 
 # ----------------------------
-# DATA LOADING (UPDATED CSV FIX)
+# DATA LOADING (✅ FIXED CSV HERE ONLY)
 # ----------------------------
 @st.cache_data
 def load_data():
@@ -83,22 +83,19 @@ def load_data():
 
 
 # ----------------------------
-# VECTOR STORE
+# VECTOR STORE (FIXED)
 # ----------------------------
 @st.cache_resource
 def build_vector_store():
     combined_text = load_data()
 
     cleaned = clean_text(combined_text)
-
-    # 🔥 Improved chunking
-    chunks = chunk_text(cleaned, chunk_size=300, overlap=50)
+    chunks = chunk_text(cleaned, chunk_size=500, overlap=50)
 
     chunks = [c for c in chunks if isinstance(c, str) and c.strip()]
 
     embeddings = create_embeddings(chunks)
 
-    # 🔥 Normalize embeddings
     embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
 
     dim = embeddings.shape[1]
@@ -116,7 +113,7 @@ def build_vector_store():
 # RAG HELPERS
 # ----------------------------
 def expand_query(query):
-    return query + " Ghana election results votes candidates regions budget spending economy policy"
+    return query + " economic policy budget election government spending"
 
 
 def select_context(chunks, scores, max_chars=1200):
@@ -143,7 +140,6 @@ def rag_pipeline(query, retriever):
     model = get_model()
     query_embedding = model.encode(expanded).astype("float32")
 
-    # Normalize query
     query_embedding = query_embedding / np.linalg.norm(query_embedding)
 
     results, scores = retriever.search(query_embedding, k=5)
