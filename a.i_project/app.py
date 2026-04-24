@@ -62,7 +62,7 @@ logging.basicConfig(
 
 
 # ----------------------------
-# DATA LOADING (✅ FIXED CSV HERE ONLY)
+# DATA LOADING (CSV FIX)
 # ----------------------------
 @st.cache_data
 def load_data():
@@ -71,7 +71,7 @@ def load_data():
 
     logging.info(f"Loaded CSV rows={len(csv_data)}, PDF chars={len(pdf_text)}")
 
-    # 🔥 FIX: Convert CSV rows into meaningful text
+    # ✅ Structured CSV
     csv_rows = []
     for _, row in csv_data.iterrows():
         row_text = ", ".join([f"{col}: {row[col]}" for col in csv_data.columns])
@@ -83,13 +83,15 @@ def load_data():
 
 
 # ----------------------------
-# VECTOR STORE (FIXED)
+# VECTOR STORE
 # ----------------------------
 @st.cache_resource
 def build_vector_store():
     combined_text = load_data()
 
     cleaned = clean_text(combined_text)
+
+    # (kept same to avoid breaking anything)
     chunks = chunk_text(cleaned, chunk_size=500, overlap=50)
 
     chunks = [c for c in chunks if isinstance(c, str) and c.strip()]
@@ -110,13 +112,13 @@ def build_vector_store():
 
 
 # ----------------------------
-# RAG HELPERS
+# RAG HELPERS (UPDATED)
 # ----------------------------
 def expand_query(query):
-    return query + " economic policy budget election government spending"
+    return query + " Ghana election results votes candidates regions summary totals statistics budget spending economy policy"
 
 
-def select_context(chunks, scores, max_chars=1200):
+def select_context(chunks, scores, max_chars=2000):  # ✅ increased context size
     ranked = sorted(zip(chunks, scores), key=lambda x: x[1], reverse=True)
 
     selected = []
@@ -132,7 +134,7 @@ def select_context(chunks, scores, max_chars=1200):
 
 
 # ----------------------------
-# RAG PIPELINE
+# RAG PIPELINE (UPDATED PROMPT)
 # ----------------------------
 def rag_pipeline(query, retriever):
     expanded = expand_query(query)
@@ -153,8 +155,11 @@ def rag_pipeline(query, retriever):
 
     context = select_context(results, scores)
 
+    # ✅ Improved prompt for summaries
     prompt = f"""
 Answer the question using ONLY the context below.
+
+If the question asks for a summary, combine information from multiple parts of the context.
 
 Context:
 {context}
@@ -162,7 +167,7 @@ Context:
 Question:
 {query}
 
-If the answer is not in the context, say "I don't know".
+If the answer is clearly not in the context, say "I don't know".
 """
 
     answer = generate_response(prompt, context)
